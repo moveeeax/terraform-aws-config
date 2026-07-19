@@ -9,7 +9,7 @@ resource that starts recording, giving a complete account-level Config setup.
 
 ```hcl
 module "config" {
-  source = "github.com/cybercapybara/terraform-aws-config"
+  source = "github.com/moveeeax/terraform-aws-config"
 
   name           = "recorder"
   role_arn       = aws_iam_role.config.arn
