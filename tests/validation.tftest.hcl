@@ -57,3 +57,13 @@ run "rejects_non_kms_key_arn" {
 
   expect_failures = [var.s3_kms_key_arn]
 }
+
+run "rejects_empty_name" {
+  command = plan
+
+  variables {
+    name = ""
+  }
+
+  expect_failures = [var.name]
+}

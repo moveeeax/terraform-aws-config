@@ -67,3 +67,72 @@ run "kms_key_is_forwarded_to_the_delivery_channel" {
     error_message = "s3_kms_key_arn must be forwarded so snapshots are encrypted with the given key."
   }
 }
+
+run "recorder_can_be_created_stopped" {
+  variables {
+    enable_recorder = false
+  }
+
+  assert {
+    condition     = aws_config_configuration_recorder_status.this.is_enabled == false
+    error_message = "enable_recorder = false must leave the recorder stopped."
+  }
+}
+
+run "s3_key_prefix_is_forwarded_to_the_delivery_channel" {
+  variables {
+    s3_key_prefix = "config-history/account-a"
+  }
+
+  assert {
+    condition     = aws_config_delivery_channel.this.s3_key_prefix == "config-history/account-a"
+    error_message = "s3_key_prefix must be forwarded to the delivery channel."
+  }
+}
+
+run "multiple_optional_flags_together_do_not_clobber_each_other" {
+  variables {
+    name               = "narrow-recorder"
+    all_supported      = false
+    resource_types     = ["AWS::EC2::Instance", "AWS::S3::Bucket"]
+    s3_key_prefix      = "config-history/account-b"
+    s3_kms_key_arn     = "arn:aws:kms:us-east-1:123456789012:key/00000000-1111-2222-3333-444444444444"
+    delivery_frequency = "One_Hour"
+    enable_recorder    = false
+  }
+
+  assert {
+    condition     = aws_config_configuration_recorder.this.name == "narrow-recorder"
+    error_message = "name must be forwarded to the recorder."
+  }
+
+  assert {
+    condition     = aws_config_configuration_recorder.this.recording_group[0].resource_types == toset(["AWS::EC2::Instance", "AWS::S3::Bucket"])
+    error_message = "resource_types must be forwarded alongside other optional settings."
+  }
+
+  assert {
+    condition     = coalesce(aws_config_configuration_recorder.this.recording_group[0].include_global_resource_types, false) == false
+    error_message = "include_global_resource_types must still be dropped when all_supported is false, regardless of other flags set."
+  }
+
+  assert {
+    condition     = aws_config_delivery_channel.this.s3_key_prefix == "config-history/account-b"
+    error_message = "s3_key_prefix must be forwarded alongside other optional settings."
+  }
+
+  assert {
+    condition     = aws_config_delivery_channel.this.s3_kms_key_arn == "arn:aws:kms:us-east-1:123456789012:key/00000000-1111-2222-3333-444444444444"
+    error_message = "s3_kms_key_arn must be forwarded alongside other optional settings."
+  }
+
+  assert {
+    condition     = aws_config_delivery_channel.this.snapshot_delivery_properties[0].delivery_frequency == "One_Hour"
+    error_message = "delivery_frequency must be forwarded alongside other optional settings."
+  }
+
+  assert {
+    condition     = aws_config_configuration_recorder_status.this.is_enabled == false
+    error_message = "enable_recorder must be forwarded alongside other optional settings."
+  }
+}
