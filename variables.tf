@@ -36,7 +36,7 @@ variable "s3_key_prefix" {
 }
 
 variable "all_supported" {
-  description = "Whether to record configuration changes for all supported resource types."
+  description = "Whether to record configuration changes for all supported resource types. Ignored when excluded_resource_types is non-empty, which records all supported types except the excluded ones."
   type        = bool
   default     = true
 }
@@ -48,9 +48,62 @@ variable "include_global_resource_types" {
 }
 
 variable "resource_types" {
-  description = "Resource types to record when all_supported is false, for example [\"AWS::EC2::Instance\"]. Must be empty when all_supported is true."
+  description = "Resource types to record when all_supported is false, for example [\"AWS::EC2::Instance\"]. Must be empty when all_supported is true or excluded_resource_types is set."
   type        = list(string)
   default     = []
+}
+
+variable "excluded_resource_types" {
+  description = "Resource types to leave out while recording every other supported type, for example [\"AWS::EC2::NetworkInterface\"]. A non-empty list switches the recorder to the EXCLUSION_BY_RESOURCE_TYPES strategy and overrides all_supported and include_global_resource_types; global IAM types are recorded unless listed here. Must not be combined with resource_types."
+  type        = list(string)
+  default     = []
+}
+
+variable "recording_frequency" {
+  description = "Default recording frequency for all recorded resource types: CONTINUOUS records every change, DAILY records at most one configuration item per resource per 24 hours."
+  type        = string
+  default     = "CONTINUOUS"
+
+  validation {
+    condition     = contains(["CONTINUOUS", "DAILY"], var.recording_frequency)
+    error_message = "recording_frequency must be CONTINUOUS or DAILY."
+  }
+}
+
+variable "recording_mode_overrides" {
+  description = "Recording frequency overrides for specific resource types, for example DAILY for noisy types under a CONTINUOUS default. AWS Config accepts at most one override."
+  type = list(object({
+    description         = optional(string)
+    resource_types      = list(string)
+    recording_frequency = string
+  }))
+  default = []
+
+  validation {
+    condition     = length(var.recording_mode_overrides) <= 1
+    error_message = "recording_mode_overrides accepts at most one override; AWS Config rejects more."
+  }
+
+  validation {
+    condition     = alltrue([for o in var.recording_mode_overrides : length(o.resource_types) > 0])
+    error_message = "Each recording_mode_overrides entry must name at least one resource type."
+  }
+
+  validation {
+    condition     = alltrue([for o in var.recording_mode_overrides : contains(["CONTINUOUS", "DAILY"], o.recording_frequency)])
+    error_message = "Each recording_mode_overrides entry must set recording_frequency to CONTINUOUS or DAILY."
+  }
+
+  validation {
+    condition = alltrue([
+      for o in var.recording_mode_overrides : o.recording_frequency != "DAILY" || length(setintersection(o.resource_types, [
+        "AWS::Config::ResourceCompliance",
+        "AWS::Config::ConformancePackCompliance",
+        "AWS::Config::ConfigurationRecorder",
+      ])) == 0
+    ])
+    error_message = "AWS Config cannot record AWS::Config::ResourceCompliance, AWS::Config::ConformancePackCompliance or AWS::Config::ConfigurationRecorder daily; leave them out of DAILY overrides."
+  }
 }
 
 variable "s3_kms_key_arn" {
