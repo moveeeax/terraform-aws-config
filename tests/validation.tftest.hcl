@@ -67,3 +67,68 @@ run "rejects_empty_name" {
 
   expect_failures = [var.name]
 }
+
+run "rejects_resource_types_alongside_excluded_resource_types" {
+  command = plan
+
+  variables {
+    all_supported           = false
+    resource_types          = ["AWS::EC2::Instance"]
+    excluded_resource_types = ["AWS::EC2::NetworkInterface"]
+  }
+
+  expect_failures = [aws_config_configuration_recorder.this]
+}
+
+run "rejects_invalid_recording_frequency" {
+  command = plan
+
+  variables {
+    recording_frequency = "HOURLY"
+  }
+
+  expect_failures = [var.recording_frequency]
+}
+
+run "rejects_more_than_one_recording_mode_override" {
+  command = plan
+
+  variables {
+    recording_mode_overrides = [
+      { resource_types = ["AWS::EC2::NetworkInterface"], recording_frequency = "DAILY" },
+      { resource_types = ["AWS::EC2::Instance"], recording_frequency = "DAILY" },
+    ]
+  }
+
+  expect_failures = [var.recording_mode_overrides]
+}
+
+run "rejects_recording_mode_override_without_resource_types" {
+  command = plan
+
+  variables {
+    recording_mode_overrides = [{ resource_types = [], recording_frequency = "DAILY" }]
+  }
+
+  expect_failures = [var.recording_mode_overrides]
+}
+
+run "rejects_invalid_recording_mode_override_frequency" {
+  command = plan
+
+  variables {
+    recording_mode_overrides = [{ resource_types = ["AWS::EC2::NetworkInterface"], recording_frequency = "WEEKLY" }]
+  }
+
+  expect_failures = [var.recording_mode_overrides]
+}
+
+run "rejects_daily_override_for_config_compliance_types" {
+  command = plan
+
+  variables {
+    recording_mode_overrides = [{ resource_types = ["AWS::Config::ResourceCompliance"], recording_frequency = "DAILY" }]
+  }
+
+  expect_failures = [var.recording_mode_overrides]
+}
